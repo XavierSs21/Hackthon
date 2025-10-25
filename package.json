@@ -1,0 +1,45 @@
+{
+  "name": "banorte-financial-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "jiti": "latest",
+    "less": "latest",
+    "lightningcss": "latest",
+    "lucide-react": "^0.454.0",
+    "next": "16.0.0",
+    "react": "^18.3.1",
+    "react-dom": "latest",
+    "recharts": "latest",
+    "sass": "latest",
+    "sass-embedded": "latest",
+    "shadcn": "latest",
+    "socket.io-client": "^4.7.2",
+    "stylus": "latest",
+    "sugarss": "latest",
+    "tailwind-merge": "^2.5.5",
+    "tailwindcss-animate": "^1.0.7",
+    "terser": "latest",
+    "tsx": "latest",
+    "yaml": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.17",
+    "postcss": "^8.5",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5",
+    "vite": "^5.1.0"
+  }
+}
