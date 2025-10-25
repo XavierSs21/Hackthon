@@ -129,34 +129,62 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-200">
       {/* Header sticky */}
-      <header className="sticky top-0 z-50 bg-white shadow-md">
-        <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-xl">
-                B
-              </div>
-              <h1 className="text-xl md:text-2xl font-bold text-gray-900">Copiloto Financiero Banorte</h1>
-            </div>
+      <header className="sticky top-0 z-50 text-white shadow-md">
+        {/* Barra superior roja */}
+      <div className="bg-[#EE0027]">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 h-14 flex items-center justify-between">
+      {/* Left: logo + brand */}
+      <div className="flex items-center gap-3">
+        <img
+          src="/LogoBanorte.png"
+          alt="Banorte"
+          className="h-7 w-auto"
+        />
+        <h1 className="text-sm sm:text-base md:text-lg font-semibold tracking-wide uppercase">
+          Copiloto Financiero Banorte
+        </h1>
+      </div>
 
-            {/* Indicador de conexión */}
-            <div className="flex items-center gap-2">
-              {isConnected ? (
-                <>
-                  <Wifi className="w-5 h-5 text-green-500" />
-                  <span className="hidden md:inline text-sm text-green-600 font-medium">Conectado</span>
-                </>
-              ) : (
-                <>
-                  <WifiOff className="w-5 h-5 text-red-500" />
-                  <span className="hidden md:inline text-sm text-red-600 font-medium">Desconectado</span>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
+      {/* Right: connection status */}
+      <div className="flex items-center gap-3">
+        <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-xs">
+          <span
+            className={`inline-block h-2 w-2 rounded-full ${
+              isConnected ? "bg-emerald-400" : "bg-red-400"
+            }`}
+          />
+          {isConnected ? "Conectado" : "Desconectado"}
+        </span>
+
+        {/* keep your icons for extra clarity on mobile */}
+        {isConnected ? (
+          <Wifi className="w-5 h-5 text-white/90 sm:hidden" />
+        ) : (
+          <WifiOff className="w-5 h-5 text-white/90 sm:hidden" />
+        )}
+      </div>
+    </div>
+  </div>
+
+  {/* Optional: darker sub-bar (tabs / sections) */}
+  <div className="bg-[#C70021]">
+    <nav className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 h-10 flex items-center gap-6 text-sm">
+      <button className="font-medium border-b-2 border-transparent hover:border-white transition">
+        Resumen
+      </button>
+      <button className="font-medium border-b-2 border-transparent hover:border-white transition">
+        Cuentas
+      </button>
+      <button className="font-medium border-b-2 border-transparent hover:border-white transition">
+        Gastos
+      </button>
+      <button className="font-medium border-b-2 border-transparent hover:border-white transition">
+        Presupuesto
+      </button>
+    </nav>
+  </div>
       </header>
 
       {/* Layout principal */}
@@ -185,7 +213,7 @@ function App() {
             <div className="flex justify-center">
               <button
                 onClick={simulateScenario}
-                className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 hover:scale-105 transition-all duration-300"
+                className="px-6 py-3 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 hover:scale-105 transition-all duration-300"
               >
                 Simular Escenario Demo
               </button>
