@@ -26,8 +26,8 @@ const KPICard = ({ title, value, change, trend }) => {
             <span className={`text-sm font-semibold ${changeColor}`}>{Math.abs(change)}%</span>
           </div>
         </div>
-        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-          <DollarSign className="w-6 h-6 text-blue-600" />
+        <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+          <DollarSign className="w-6 h-6 text-green-600" />
         </div>
       </div>
     </div>

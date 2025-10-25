@@ -138,7 +138,7 @@ function App() {
       {/* Left: logo + brand */}
       <div className="flex items-center gap-3">
         <img
-          src="/LogoBanorte.jpg"
+          src="/LogoBanorte.png"
           alt="Banorte"
           className="h-7 w-auto"
         />
@@ -213,7 +213,7 @@ function App() {
             <div className="flex justify-center">
               <button
                 onClick={simulateScenario}
-                className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 hover:scale-105 transition-all duration-300"
+                className="px-6 py-3 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 hover:scale-105 transition-all duration-300"
               >
                 Simular Escenario Demo
               </button>
