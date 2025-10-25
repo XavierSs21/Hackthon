@@ -129,7 +129,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gray-200">
       {/* Header sticky */}
       <header className="sticky top-0 z-50 text-white shadow-md">
         {/* Barra superior roja */}
