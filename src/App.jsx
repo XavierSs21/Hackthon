@@ -6,7 +6,8 @@ import KPICard from "./components/KPICard"
 import CashFlowChart from "./components/CashFlowChart"
 import BudgetVarianceChart from "./components/BudgetVarianceChart"
 import ExpenseBreakdownChart from "./components/ExpenseBreakdownChart"
-import ChatInterface from "./components/ChatInterface"
+import CollapsibleChatDefault from './components/CollapsibleChatDefault';
+
 import {
   initialKPIs,
   initialCashFlowData,
@@ -221,16 +222,16 @@ function App() {
           </div>
 
           {/* Columna derecha: Chat (35%) */}
-          <div className="lg:col-span-1">
-            <ChatInterface
-              messages={messages}
-              isTyping={isTyping}
-              isConnected={isConnected}
-              onSendMessage={sendMessage}
-            />
-          </div>
+          
         </div>
       </main>
+      {/* Chat Colapsable */}
+      <CollapsibleChatDefault 
+        messages={messages}
+        isTyping={isTyping}
+        isConnected={isConnected}
+        onSendMessage={sendMessage}
+      />
     </div>
   )
 }
