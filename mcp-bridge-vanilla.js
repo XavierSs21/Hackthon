@@ -43,8 +43,8 @@ child.on('exit', code => {
   process.exit(code || 1);
 });
 
-process.on('SIGINT', () => { try { child.kill('SIGINT'); } catch {} process.exit(0); });
-process.on('SIGTERM', () => { try { child.kill('SIGTERM'); } catch {} process.exit(0); });
+process.on('SIGINT', () => { try { child.kill('SIGINT'); } catch { } process.exit(0); });
+process.on('SIGTERM', () => { try { child.kill('SIGTERM'); } catch { } process.exit(0); });
 
 // -----------------------------
 // JSON-RPC over NDJSON/LSP
@@ -196,16 +196,48 @@ app.post('/rpc', async (req, res) => {
 // Gemini: single-shot (GA)
 app.post('/gemini/chat', async (req, res) => {
   try {
-    const { model = DEFAULT_MODEL, messages = [], input } = req.body || {};
+    const {
+      model = DEFAULT_MODEL,
+      messages = [],
+      input,
+      system,                  // <-- NUEVO: texto de contexto
+      generationConfig,        // <-- opcional
+      safetySettings
+    } = req.body || {};
+
     const contents = [
+      ...(system ? [{
+        role: 'user',
+        parts: [{ text: `Recuerda cumplir SIEMPRE: Español es-MX, MXN es-MX, viñetas, cerrar con: "No es asesoría financiera."` }]
+      }] : []),
+
+
+
       ...messages.filter(m => m?.content).map(m => ({
         role: m.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: m.content }],
       })),
       ...(input ? [{ role: 'user', parts: [{ text: input }] }] : []),
     ];
+    const payload = { model, contents };
+    if (system) payload.systemInstruction = { text: system };     // <-- CLAVE
+    payload.generationConfig = Object.assign({ temperature: 0.2 }, req.body?.generationConfig || {});
+    if (generationConfig) payload.generationConfig = generationConfig;
+    if (safetySettings) payload.safetySettings = safetySettings;
+
+
     const resp = await ai.models.generateContent({ model, contents });
-    res.json({ text: resp.text });
+    let out = resp.text || "";
+    const CLAUSE = process.env.DISCLAIMER_TEXT || 'Esta información es educativa; no constituye asesoría financiera, fiscal ni legal. Valídala con tu asesor Banorte.';
+
+    const raw = (resp.text || '').trim();
+    const same = (a, b) => a.replace(/\s+/g,' ').trim().toLowerCase() === b.replace(/\s+/g,' ').trim().toLowerCase();
+
+    if (!out.trim().endsWith(CLAUSE)) {
+      // si no termina exactamente con la cláusula, la agregamos en una línea nueva
+      out = `${out.trim()}\n\n${CLAUSE}`;
+    }
+    res.json({ text: out });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: String(e?.message || e) });
@@ -215,7 +247,14 @@ app.post('/gemini/chat', async (req, res) => {
 // Gemini: streaming NDJSON (GA)
 app.post('/gemini/chat-stream', async (req, res) => {
   try {
-    const { model = DEFAULT_MODEL, messages = [], input } = req.body || {};
+    const {
+      model = DEFAULT_MODEL,
+      messages = [],
+      input,
+      system,                  // <-- NUEVO
+      generationConfig,        // <-- opcional
+      safetySettings
+    } = req.body || {};
     const contents = [
       ...messages.filter(m => m?.content).map(m => ({
         role: m.role === 'assistant' ? 'model' : 'user',
@@ -223,6 +262,12 @@ app.post('/gemini/chat-stream', async (req, res) => {
       })),
       ...(input ? [{ role: 'user', parts: [{ text: input }] }] : []),
     ];
+
+    const payload = { model, contents };
+    if (system) payload.systemInstruction = { text: system };     // <-- CLAVE
+    if (generationConfig) payload.generationConfig = generationConfig;
+    if (safetySettings) payload.safetySettings = safetySettings;
+
     const stream = await ai.models.generateContentStream({ model, contents });
     res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
     for await (const chunk of stream) {
@@ -234,7 +279,7 @@ app.post('/gemini/chat-stream', async (req, res) => {
   } catch (e) {
     console.error(e);
     if (!res.headersSent) res.status(500).json({ error: String(e?.message || e) });
-    else { try { res.write(JSON.stringify({ error: String(e?.message || e) })+'\n'); } catch {} res.end(); }
+    else { try { res.write(JSON.stringify({ error: String(e?.message || e) }) + '\n'); } catch { } res.end(); }
   }
 });
 

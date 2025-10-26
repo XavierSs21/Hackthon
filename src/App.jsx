@@ -8,8 +8,7 @@ import CashFlowChart from "./components/CashFlowChart";
 import BudgetVarianceChart from "./components/BudgetVarianceChart";
 import ExpenseBreakdownChart from "./components/ExpenseBreakdownChart";
 import ChatInterface from "./components/ChatInterface";
-// Opcional: si existe
-import MCPQuickTest from "./components/MCPQuickTest";
+import MCPQuickTest from "./components/MCPQuickTest"; // opcional si existe
 import { geminiChat } from "./lib/gemini";
 
 import {
@@ -132,7 +131,7 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
 
-  // Ping real al bridge y log de salud (HOOK dentro del componente)
+  // Ping real al bridge y log de salud
   useEffect(() => {
     console.log("VITE_BRIDGE_URL =", (import.meta?.env && import.meta.env.VITE_BRIDGE_URL));
     health().then(h => console.log("bridge /health:", h)).catch(err => console.error(err));
@@ -193,6 +192,16 @@ export default function App() {
     }
   }
 
+  const SYSTEM = `
+Eres "Copiloto Financiero Banorte". Ayudas a usuarios en México a entender sus finanzas personales y de PyME.
+- Usa MXN por defecto y formato es-MX.
+- Da contexto, pasos concretos y números redondeados; usa bullets cuando ayude.
+- Si hay comandos tipo /fx, /budget, /retire, /risk, prioriza herramientas MCP; si no, responde tú.
+- Aclara que no es asesoría financiera/tributaria legal; invita a validar con un asesor.
+- Si faltan datos clave (monto, plazo, tasa), pide 1–2 aclaraciones, no interrogatorio.
+- Ajusta ejemplos a ingresos/gastos típicos en MX y tasas razonables; advierte supuestos.
+`;
+
   // Enviar mensaje (slash-commands -> MCP; otro -> Gemini)
   const sendMessage = (raw) => {
     const clean = (raw ?? "").trim();
@@ -235,7 +244,11 @@ export default function App() {
           content: m.text,
         }));
 
-        const { text: reply } = await geminiChat({ messages: history });
+        const { text: reply } = await geminiChat({
+          messages: history,
+          system: SYSTEM,
+          generationConfig: { temperature: 0.2 },
+        });
         const aiMessage = {
           id: Date.now() + 1,
           text: reply,
@@ -257,7 +270,7 @@ export default function App() {
     })();
   };
 
-  // Simulación (sigue igual)
+  // Simulación (demo)
   const simulateScenario = () => {
     setKpis((prev) => ({
       revenue: prev.revenue * 1.05,
