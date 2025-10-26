@@ -1,60 +1,63 @@
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts"
+import React from "react";
+import {
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Tooltip,
+  Legend,
+  Cell,
+} from "recharts";
 
-const ExpenseBreakdownChart = ({ data }) => {
-  const COLORS = ["#2563eb", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#6b7280"]
-
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat("es-MX", {
-      style: "currency",
-      currency: "MXN",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value)
-  }
-
-  const CustomTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-white p-4 rounded-lg shadow-lg border border-gray-200">
-          <p className="font-semibold text-gray-900 mb-1">{payload[0].name}</p>
-          <p className="text-sm text-gray-600">{formatCurrency(payload[0].value)}</p>
-          <p className="text-sm font-medium text-blue-600">{payload[0].payload.porcentaje}%</p>
-        </div>
-      )
-    }
-    return null
-  }
-
-  const renderLabel = (entry) => {
-    return `${entry.porcentaje}%`
-  }
-
+function EmptyState({ title = "Sin datos de gastos por categoría" }) {
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
-      <h2 className="text-lg font-bold text-gray-900 mb-4">Desglose de Gastos</h2>
-      <ResponsiveContainer width="100%" height={300}>
-        <PieChart>
-          <Pie
-            data={data}
-            cx="50%"
-            cy="50%"
-            labelLine={false}
-            label={renderLabel}
-            outerRadius={80}
-            fill="#8884d8"
-            dataKey="valor"
-            animationDuration={1000}
-          >
-            {data.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-            ))}
-          </Pie>
-          <Tooltip content={<CustomTooltip />} />
-          <Legend wrapperStyle={{ fontSize: "12px" }} layout="horizontal" verticalAlign="bottom" align="center" />
-        </PieChart>
-      </ResponsiveContainer>
+    <div className="rounded-2xl border border-gray-200 bg-white p-6 text-center text-gray-600">
+      {title}
     </div>
-  )
+  );
 }
 
-export default ExpenseBreakdownChart
+const PALETTE = [
+  "#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6",
+  "#ec4899", "#14b8a6", "#f97316", "#22c55e", "#0ea5e9",
+  "#a3e635", "#eab308", "#fb7185", "#38bdf8", "#c084fc",
+];
+
+export default function ExpenseBreakdownChart({ data = [], title = "Gasto por Categoría" }) {
+  const safe = (Array.isArray(data) ? data : []).filter(d => (d?.amount ?? 0) > 0);
+  if (!safe.length) return <EmptyState title="Sin datos del mes seleccionado" />;
+
+  // Top 10 + "Otros"
+  const sorted = [...safe].sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0));
+  const top = sorted.slice(0, 10);
+  const rest = sorted.slice(10);
+  const othersTotal = rest.reduce((acc, r) => acc + (r.amount ?? 0), 0);
+  const pieData = othersTotal > 0 ? [...top, { category: "Otros", amount: othersTotal }] : top;
+
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow">
+      <h3 className="font-semibold text-gray-900 mb-2">{title}</h3>
+      <div className="h-72">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Tooltip formatter={(v) => v?.toLocaleString("es-MX")} />
+            <Legend />
+            <Pie
+              data={pieData}
+              dataKey="amount"
+              nameKey="category"
+              cx="50%"
+              cy="50%"
+              outerRadius="80%"
+              label={(d) => `${d.category}`}
+              labelLine={false}
+            >
+              {pieData.map((_, i) => (
+                <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
+              ))}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}

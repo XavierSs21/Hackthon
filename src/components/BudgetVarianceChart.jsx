@@ -1,64 +1,77 @@
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
+import React from "react";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  ReferenceLine,
+} from "recharts";
 
-const BudgetVarianceChart = ({ data }) => {
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat("es-MX", {
-      style: "currency",
-      currency: "MXN",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value)
-  }
-
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-white p-4 rounded-lg shadow-lg border border-gray-200">
-          <p className="font-semibold text-gray-900 mb-2">{label}</p>
-          {payload.map((entry, index) => (
-            <p key={index} className="text-sm" style={{ color: entry.color }}>
-              {entry.name}: {formatCurrency(entry.value)}
-            </p>
-          ))}
-        </div>
-      )
-    }
-    return null
-  }
-
+function EmptyState({ title = "Sin datos de presupuesto vs real" }) {
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
-      <h2 className="text-lg font-bold text-gray-900 mb-4">Variación Presupuestaria</h2>
-      <ResponsiveContainer width="100%" height={300}>
-        <BarChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-          <XAxis
-            dataKey="departamento"
-            stroke="#6b7280"
-            style={{ fontSize: "11px" }}
-            angle={-15}
-            textAnchor="end"
-            height={60}
-          />
-          <YAxis
-            stroke="#6b7280"
-            style={{ fontSize: "12px" }}
-            tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-          />
-          <Tooltip content={<CustomTooltip />} />
-          <Legend wrapperStyle={{ fontSize: "14px" }} />
-          <Bar
-            dataKey="presupuestado"
-            fill="#2563eb"
-            name="Presupuestado"
-            radius={[4, 4, 0, 0]}
-            animationDuration={1000}
-          />
-          <Bar dataKey="real" fill="#f97316" name="Real" radius={[4, 4, 0, 0]} animationDuration={1000} />
-        </BarChart>
-      </ResponsiveContainer>
+    <div className="rounded-2xl border border-gray-200 bg-white p-6 text-center text-gray-600">
+      {title}
     </div>
-  )
+  );
 }
 
-export default BudgetVarianceChart
+export default function BudgetVarianceChart({ data = [] }) {
+  const safe = Array.isArray(data) ? data : [];
+  if (!safe.length) return <EmptyState />;
+
+  // Dominios seguros
+  const vals = safe.flatMap((d) => [d.budget ?? 0, d.actual ?? 0, d.variance ?? 0]);
+  const maxAbs = Math.max(1, ...vals.map((v) => Math.abs(v)));
+  const yDomain = [0, maxAbs * 1.2];
+
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow">
+      <h3 className="font-semibold text-gray-900 mb-2">Presupuesto vs Real</h3>
+      <div className="h-72">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={safe}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="category" />
+            <YAxis domain={yDomain} />
+            <Tooltip formatter={(v) => v?.toLocaleString("es-MX")} />
+            <Legend />
+            <Bar dataKey="budget" name="Presupuesto" />
+            <Bar dataKey="actual" name="Real" />
+            <ReferenceLine y={0} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Variance table */}
+      <div className="mt-3 overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead className="text-left text-gray-600">
+            <tr>
+              <th className="py-1 pr-3">Categoría</th>
+              <th className="py-1 text-right">Presupuesto</th>
+              <th className="py-1 text-right">Real</th>
+              <th className="py-1 text-right">Varianza</th>
+            </tr>
+          </thead>
+          <tbody>
+            {safe.map((r, i) => (
+              <tr key={i} className="border-t last:border-b">
+                <td className="py-1 pr-3">{r.category}</td>
+                <td className="py-1 text-right">${Number(r.budget ?? 0).toLocaleString("es-MX")}</td>
+                <td className="py-1 text-right">${Number(r.actual ?? 0).toLocaleString("es-MX")}</td>
+                <td className={`py-1 text-right ${Number(r.variance ?? 0) < 0 ? "text-red-600" : "text-emerald-600"}`}>
+                  ${Number(r.variance ?? 0).toLocaleString("es-MX")}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  );
+}
