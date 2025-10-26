@@ -1,37 +1,56 @@
-import { TrendingUp, TrendingDown, DollarSign } from "lucide-react"
+// src/components/KPICard.jsx
+import React from "react";
 
-const KPICard = ({ title, value, change, trend }) => {
-  const formatCurrency = (val) => {
-    return new Intl.NumberFormat("es-MX", {
-      style: "currency",
-      currency: "MXN",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(val)
-  }
-
-  const isPositive = trend === "up"
-  const changeColor = isPositive ? "text-green-600" : "text-red-600"
-  const bgColor = isPositive ? "bg-green-50" : "bg-red-50"
-  const TrendIcon = isPositive ? TrendingUp : TrendingDown
-
-  return (
-    <div className="bg-white rounded-lg shadow-md p-6 hover:scale-105 transition-all duration-300">
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <p className="text-sm font-medium text-gray-600 mb-2">{title}</p>
-          <p className="text-2xl font-bold text-gray-900 mb-3">{formatCurrency(value)}</p>
-          <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full ${bgColor}`}>
-            <TrendIcon className={`w-4 h-4 ${changeColor}`} />
-            <span className={`text-sm font-semibold ${changeColor}`}>{Math.abs(change)}%</span>
-          </div>
-        </div>
-        <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-          <DollarSign className="w-6 h-6 text-green-600" />
-        </div>
-      </div>
-    </div>
-  )
+function fmtMXN(n) {
+  if (!isFinite(n)) return "—";
+  return new Intl.NumberFormat("es-MX", {
+    style: "currency",
+    currency: "MXN",
+    maximumFractionDigits: 0,
+  }).format(n);
+}
+function fmtPct(n) {
+  if (!isFinite(n)) return "—";
+  return `${Math.round(n)}%`;
 }
 
-export default KPICard
+export default function KPICard({
+  title,
+  value,
+  unit = "mxn",          // 'mxn' | 'pct' | 'none'
+  deltaPct = null,       // número: variación vs mes anterior
+  goodWhenUp = true,     // en gastos pon false (bajar es bueno)
+  caption,               // subtítulo opcional
+}) {
+  const formatted =
+    unit === "mxn" ? fmtMXN(value) :
+    unit === "pct" ? fmtPct(value) :
+    (value ?? "—");
+
+  const isUp = (deltaPct ?? 0) >= 0;
+  const isGood = goodWhenUp ? isUp : !isUp;
+  const arrow = isUp ? "▲" : "▼";
+  const deltaText = isFinite(deltaPct) ? `${arrow} ${Math.abs(deltaPct).toFixed(1)}% vs mes anterior` : "–";
+  const chipClass = isGood ? "text-emerald-700 bg-emerald-50" : "text-rose-700 bg-rose-50";
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-medium text-gray-700">{title}</h3>
+        <span className={`text-xs px-2 py-0.5 rounded-full ${chipClass}`}>
+          {deltaText}
+        </span>
+      </div>
+
+      <div className="mt-2 text-2xl font-semibold text-gray-900">
+        {formatted}
+      </div>
+
+      {caption && (
+        <div className="mt-1 text-xs text-gray-500">
+          {caption}
+        </div>
+      )}
+    </div>
+  );
+}

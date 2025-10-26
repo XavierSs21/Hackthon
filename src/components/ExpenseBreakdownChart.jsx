@@ -1,60 +1,79 @@
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts"
+import React, { useMemo } from "react";
+import {
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  Legend,
+} from "recharts";
 
-const ExpenseBreakdownChart = ({ data }) => {
-  const COLORS = ["#2563eb", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#6b7280"]
-
-  const formatCurrency = (value) => {
+function mxn(n) {
+  try {
     return new Intl.NumberFormat("es-MX", {
       style: "currency",
       currency: "MXN",
-      minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(value)
+    }).format(Number(n || 0));
+  } catch {
+    return n;
   }
+}
 
-  const CustomTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-white p-4 rounded-lg shadow-lg border border-gray-200">
-          <p className="font-semibold text-gray-900 mb-1">{payload[0].name}</p>
-          <p className="text-sm text-gray-600">{formatCurrency(payload[0].value)}</p>
-          <p className="text-sm font-medium text-blue-600">{payload[0].payload.porcentaje}%</p>
-        </div>
-      )
-    }
-    return null
-  }
+/**
+ * Normaliza a: { name, value }
+ * Acepta: name|categoria|label para nombre; value|amount|gasto|gastos para valor
+ */
+function normalizeExpenseRow(row) {
+  const name = row.name ?? row.categoria ?? row.label ?? "Otro";
+  const value = row.value ?? row.amount ?? row.gasto ?? row.gastos ?? 0;
+  return { name: String(name), value: Number(value || 0) };
+}
 
-  const renderLabel = (entry) => {
-    return `${entry.porcentaje}%`
+const FALLBACK_COLORS = [
+  "#3b82f6", "#22c55e", "#ef4444", "#eab308", "#8b5cf6",
+  "#06b6d4", "#f97316", "#14b8a6", "#f43f5e", "#84cc16",
+];
+
+export default function ExpenseBreakdownChart({ data }) {
+  const rows = useMemo(() => {
+    const arr = Array.isArray(data) ? data : [];
+    const n = arr.map(normalizeExpenseRow).filter((d) => d.value > 0);
+    return n;
+  }, [data]);
+
+  if (!rows.length) {
+    return (
+      <div className="rounded-xl bg-white p-4 shadow-sm border">
+        <div className="text-sm font-semibold mb-1">Gasto por categoría</div>
+        <div className="text-sm text-gray-500">Sin datos — carga un CSV para ver la gráfica.</div>
+      </div>
+    );
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
-      <h2 className="text-lg font-bold text-gray-900 mb-4">Desglose de Gastos</h2>
-      <ResponsiveContainer width="100%" height={300}>
+    <div className="rounded-xl bg-white p-4 shadow-sm border">
+      <div className="text-sm font-semibold mb-4">Distribución de gastos</div>
+      <ResponsiveContainer width="100%" height={320}>
         <PieChart>
           <Pie
-            data={data}
+            data={rows}
+            dataKey="value"
+            nameKey="name"
             cx="50%"
             cy="50%"
-            labelLine={false}
-            label={renderLabel}
-            outerRadius={80}
-            fill="#8884d8"
-            dataKey="valor"
-            animationDuration={1000}
+            innerRadius={60}
+            outerRadius={100}
+            paddingAngle={3}
           >
-            {data.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+            {rows.map((_, i) => (
+              <Cell key={i} fill={FALLBACK_COLORS[i % FALLBACK_COLORS.length]} />
             ))}
           </Pie>
-          <Tooltip content={<CustomTooltip />} />
-          <Legend wrapperStyle={{ fontSize: "12px" }} layout="horizontal" verticalAlign="bottom" align="center" />
+          <Tooltip formatter={(v, name) => [mxn(v), name]} />
+          <Legend />
         </PieChart>
       </ResponsiveContainer>
     </div>
-  )
+  );
 }
-
-export default ExpenseBreakdownChart
