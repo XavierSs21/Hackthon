@@ -25,3 +25,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+# --- Python / entornos / artefactos ---
+.venv/
+__pycache__/
+*.py[cod]
+
+# Evitar site-packages accidental en el repo
+source/lib/

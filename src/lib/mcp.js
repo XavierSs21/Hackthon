@@ -7,6 +7,7 @@ async function api(path, init) {
   return r.json();
 }
 
+
 export async function health() {
   return api("/health");
 }
@@ -22,7 +23,6 @@ export async function callTool(name, args = {}) {
     body: JSON.stringify({ name, arguments: args }),
   });
 }
-
 export async function listPrompts() {
   return api("/prompts");
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Wifi, WifiOff } from "lucide-react";
 
 import KPICard from "./components/KPICard";
@@ -8,21 +8,20 @@ import CashFlowChart from "./components/CashFlowChart";
 import BudgetVarianceChart from "./components/BudgetVarianceChart";
 import ExpenseBreakdownChart from "./components/ExpenseBreakdownChart";
 import ChatInterface from "./components/ChatInterface";
-// Si no tienes este componente, puedes comentar la siguiente línea:
+// Opcional: si existe
 import MCPQuickTest from "./components/MCPQuickTest";
-
+import { geminiChat } from "./lib/gemini";
 
 import {
   initialKPIs,
   initialCashFlowData,
   initialBudgetData,
   initialExpenseData,
-  initialMessages,
 } from "./data/mockData";
 
-import { callTool, unwrapText } from "./lib/mcp"; // <- usa mcp.js (no TS)
+import { health, listTools, callTool, unwrapText } from "./lib/mcp";
 
-/** Simple parser de slash-commands del chat. */
+/** Parser de slash-commands */
 function trySlashCommand(input) {
   const p = input.trim().split(/\s+/);
 
@@ -48,26 +47,100 @@ function trySlashCommand(input) {
     };
   }
 
+  // /retire edadActual edadRetiro ahorroActual aporteMensual [rend%] [infl%] [MXN|USD...]
+  if (p[0] === "/retire" && p.length >= 5) {
+    return {
+      tool: "retirement_projection",
+      args: {
+        current_age: +p[1],
+        retirement_age: +p[2],
+        current_savings: +p[3],
+        monthly_contribution: +p[4],
+        expected_return_pct: p[5] ? +p[5] : 6,
+        inflation_pct: p[6] ? +p[6] : 3,
+        currency: p[7] || "MXN",
+      },
+    };
+  }
+
+  // /risk 5 4 3 4 5 3 2 4 (8–12 números de 1–5)
+  if (p[0] === "/risk" && p.length >= 3) {
+    const answers = p.slice(1).map((x) => Number(x));
+    return {
+      tool: "risk_profile",
+      args: { answers_json: JSON.stringify(answers) },
+    };
+  }
+
   return null;
 }
 
+/** Panel mini para probar /tools y fx_convert */
+function MCPMini() {
+  const [out, setOut] = useState("");
+  const BASE = (import.meta?.env && import.meta.env.VITE_BRIDGE_URL) || "http://localhost:8787";
+
+  async function handleList() {
+    try {
+      const res = await fetch(`${BASE}/tools`);
+      const j = await res.json();
+      setOut(JSON.stringify(j, null, 2));
+    } catch (e) {
+      setOut("Error listTools: " + (e?.message ?? String(e)));
+    }
+  }
+
+  async function handleFx() {
+    try {
+      const r = await fetch(`${BASE}/tools/call`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "fx_convert", arguments: { amount: 100, from_currency: "USD", to_currency: "MXN" } }),
+      });
+      const j = await r.json();
+      const c = j?.content;
+      const txt = Array.isArray(c) && c[0]?.text ? c[0].text : JSON.stringify(j, null, 2);
+      setOut(txt);
+    } catch (e) {
+      setOut("Error fx_convert: " + (e?.message ?? String(e)));
+    }
+  }
+
+  return (
+    <div className="space-y-2 rounded-2xl border border-white/10 bg-black/10 p-3">
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold">MCP Mini</h3>
+        <span className="text-xs opacity-70">{BASE}</span>
+      </div>
+      <div className="flex gap-2">
+        <button onClick={handleList} className="px-3 py-2 rounded bg-neutral-800 text-white">Listar tools</button>
+        <button onClick={handleFx} className="px-3 py-2 rounded bg-blue-600 text-white">Probar fx_convert</button>
+      </div>
+      <pre className="text-xs whitespace-pre-wrap bg-neutral-900/60 rounded p-3">{out || "Salida aquí..."}</pre>
+    </div>
+  );
+}
+
 export default function App() {
-  // Estado principal de la aplicación
+  // Estado principal
   const [kpis, setKpis] = useState(initialKPIs);
   const [cashFlowData, setCashFlowData] = useState(initialCashFlowData);
   const [budgetData, setBudgetData] = useState(initialBudgetData);
   const [expenseData, setExpenseData] = useState(initialExpenseData);
-  const [messages, setMessages] = useState(initialMessages);
   const [isTyping, setIsTyping] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [messages, setMessages] = useState([]);
+  const [text, setText] = useState("");
 
-  // PING real al bridge (quita la simulación)
+  // Ping real al bridge y log de salud (HOOK dentro del componente)
   useEffect(() => {
-    let alive = true;
+    console.log("VITE_BRIDGE_URL =", (import.meta?.env && import.meta.env.VITE_BRIDGE_URL));
+    health().then(h => console.log("bridge /health:", h)).catch(err => console.error(err));
 
+    let alive = true;
     async function poll() {
       try {
-        const base = import.meta.env.VITE_BRIDGE_URL;
+        const base = (import.meta?.env && import.meta.env.VITE_BRIDGE_URL) || "http://localhost:8787";
         const r = await fetch(`${base}/health`, { cache: "no-store" });
         if (!alive) return;
         setIsConnected(r.ok);
@@ -75,29 +148,66 @@ export default function App() {
         if (!alive) return;
         setIsConnected(false);
       } finally {
-        if (alive) setTimeout(poll, 2000); // reintenta cada 2s
+        if (alive) setTimeout(poll, 2000);
       }
     }
-
     poll();
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, []);
 
-  // Enviar mensaje del usuario (con soporte a slash-commands)
-  const sendMessage = (text) => {
+  // Estados para Acciones MCP (opcional)
+  const [toolsOut, setToolsOut] = useState("");
+  const [csvOut, setCsvOut] = useState("");
+
+  async function handleListTools() {
+    try {
+      const res = await listTools();
+      setToolsOut(JSON.stringify(res, null, 2));
+    } catch (e) {
+      setToolsOut("Error listTools: " + (e?.message ?? String(e)));
+    }
+  }
+
+  async function handleCSVFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    try {
+      const res = await callTool("analyze_cashflow", {
+        csv_text: text,
+        currency: "MXN",
+        has_header: true,
+      });
+      const txt = unwrapText(res);
+      setCsvOut(txt);
+      setMessages(prev => [...prev, {
+        id: Date.now(),
+        text: txt,
+        sender: "ai",
+        timestamp: new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
+      }]);
+    } catch (e) {
+      setCsvOut("Error analyze_cashflow: " + (e?.message ?? String(e)));
+    } finally {
+      e.target.value = "";
+    }
+  }
+
+  // Enviar mensaje (slash-commands -> MCP; otro -> Gemini)
+  const sendMessage = (raw) => {
+    const clean = (raw ?? "").trim();
+    if (!clean || isTyping) return;
+
     const userMessage = {
       id: Date.now(),
-      text,
+      text: clean,
       sender: "user",
       timestamp: new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
     };
-
     setMessages((prev) => [...prev, userMessage]);
 
-    // Intentar comando MCP primero
-    const cmd = trySlashCommand(text);
+    // ¿Es comando?
+    const cmd = trySlashCommand(clean);
     if (cmd) {
       setIsTyping(true);
       callTool(cmd.tool, cmd.args)
@@ -112,50 +222,42 @@ export default function App() {
           setMessages((prev) => [...prev, aiMessage]);
         })
         .finally(() => setIsTyping(false));
-      return; // no uses respuesta simulada si ejecutaste tool real
+      return;
     }
 
-    // Si no fue comando, usa la respuesta simulada original
-    setIsTyping(true);
-    setTimeout(() => {
-      const aiResponse = generateAIResponse(text);
-      const aiMessage = {
-        id: Date.now() + 1,
-        text: aiResponse,
-        sender: "ai",
-        timestamp: new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
-      };
+    // No es comando → Gemini vía bridge
+    (async () => {
+      setIsTyping(true);
+      try {
+        // Mapea historial UI -> formato Gemini
+        const history = [...messages, userMessage].map(m => ({
+          role: m.sender === "ai" ? "assistant" : "user",
+          content: m.text,
+        }));
 
-      setIsTyping(false);
-      setMessages((prev) => [...prev, aiMessage]);
-    }, 1500);
+        const { text: reply } = await geminiChat({ messages: history });
+        const aiMessage = {
+          id: Date.now() + 1,
+          text: reply,
+          sender: "ai",
+          timestamp: new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
+        };
+        setMessages((prev) => [...prev, aiMessage]);
+      } catch (err) {
+        const aiMessage = {
+          id: Date.now() + 1,
+          text: `Error con Gemini: ${err?.message ?? String(err)}`,
+          sender: "ai",
+          timestamp: new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
+        };
+        setMessages((prev) => [...prev, aiMessage]);
+      } finally {
+        setIsTyping(false);
+      }
+    })();
   };
 
-  // Respuestas simuladas (tu lógica original)
-  const generateAIResponse = (userText) => {
-    const lowerText = userText.toLowerCase();
-
-    if (lowerText.includes("simula") || lowerText.includes("simulación")) {
-      simulateScenario();
-      return "He aplicado la simulación. Los gráficos se han actualizado con las nuevas proyecciones. Puedes ver los cambios reflejados en el dashboard.";
-    }
-
-    if (lowerText.includes("flujo") || lowerText.includes("cash flow")) {
-      return `El flujo de caja actual es de ${formatCurrency(kpis.cashFlow)} MXN. La tendencia muestra una ligera disminución del 3.2% respecto al periodo anterior, principalmente debido a inversiones en tecnología.`;
-    }
-
-    if (lowerText.includes("beneficio") || lowerText.includes("profit")) {
-      return `El beneficio neto actual es de ${formatCurrency(kpis.netProfit)} MXN, con un crecimiento del 12.3% respecto al trimestre anterior. La mejora se debe principalmente a la reducción de costos operativos.`;
-    }
-
-    if (lowerText.includes("presupuesto") || lowerText.includes("budget")) {
-      return `La variación presupuestaria actual es de ${formatCurrency(kpis.budgetVariance)} MXN. Esto representa un 2.1% por debajo del presupuesto planificado. Los departamentos de Marketing y TI están ligeramente sobre presupuesto.`;
-    }
-
-    return "Entiendo tu consulta. ¿Podrías ser más específico sobre qué métrica financiera te gustaría analizar? Puedo ayudarte con flujo de caja, beneficios, presupuestos o realizar simulaciones de escenarios.";
-  };
-
-  // Simular escenario con cambios en los datos (tu lógica original)
+  // Simulación (sigue igual)
   const simulateScenario = () => {
     setKpis((prev) => ({
       revenue: prev.revenue * 1.05,
@@ -163,122 +265,91 @@ export default function App() {
       cashFlow: prev.cashFlow * 1.08,
       budgetVariance: prev.budgetVariance * 0.95,
     }));
-
     setCashFlowData((prev) =>
-      prev.map((item, index) =>
-        index >= 9 ? { ...item, proyectado: item.proyectado * 1.08 } : item
-      )
+      prev.map((item, index) => (index >= 9 ? { ...item, proyectado: item.proyectado * 1.08 } : item))
     );
-
     setBudgetData((prev) => prev.map((item) => ({ ...item, real: item.real * 1.03 })));
   };
 
-  // Helper para formatear moneda
   const formatCurrency = (value) =>
-    new Intl.NumberFormat("es-MX", {
-      style: "currency",
-      currency: "MXN",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
+    new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
 
   return (
     <div className="min-h-screen bg-gray-200">
-      {/* Header sticky */}
+      {/* Header */}
       <header className="sticky top-0 z-50 text-white shadow-md">
-        {/* Barra superior roja */}
         <div className="bg-[#EE0027]">
           <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 h-14 flex items-center justify-between">
-            {/* Left: logo + brand */}
             <div className="flex items-center gap-3">
               <img src="/LogoBanorte.png" alt="Banorte" className="h-7 w-auto" />
-              <h1 className="text-sm sm:text-base md:text-lg font-semibold tracking-wide uppercase">
-                Copiloto Financiero Banorte
-              </h1>
+              <h1 className="text-sm sm:text-base md:text-lg font-semibold tracking-wide uppercase">Copiloto Financiero Banorte</h1>
             </div>
-
-            {/* Right: connection status */}
             <div className="flex items-center gap-3">
               <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-xs">
-                <span
-                  className={`inline-block h-2 w-2 rounded-full ${
-                    isConnected ? "bg-emerald-400" : "bg-red-400"
-                  }`}
-                />
+                <span className={`inline-block h-2 w-2 rounded-full ${isConnected ? "bg-emerald-400" : "bg-red-400"}`} />
                 {isConnected ? "Conectado" : "Desconectado"}
               </span>
-
-              {isConnected ? (
-                <Wifi className="w-5 h-5 text-white/90 sm:hidden" />
-              ) : (
-                <WifiOff className="w-5 h-5 text-white/90 sm:hidden" />
-              )}
+              {isConnected ? <Wifi className="w-5 h-5 text-white/90 sm:hidden" /> : <WifiOff className="w-5 h-5 text-white/90 sm:hidden" />}
             </div>
           </div>
         </div>
-
-        {/* Sub-bar opcional */}
         <div className="bg-[#C70021]">
           <nav className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 h-10 flex items-center gap-6 text-sm">
-            <button className="font-medium border-b-2 border-transparent hover:border-white transition">
-              Resumen
-            </button>
-            <button className="font-medium border-b-2 border-transparent hover:border-white transition">
-              Cuentas
-            </button>
-            <button className="font-medium border-b-2 border-transparent hover:border-white transition">
-              Gastos
-            </button>
-            <button className="font-medium border-b-2 border-transparent hover:border-white transition">
-              Presupuesto
-            </button>
+            <button className="font-medium border-b-2 border-transparent hover:border-white transition">Resumen</button>
+            <button className="font-medium border-b-2 border-transparent hover:border-white transition">Cuentas</button>
+            <button className="font-medium border-b-2 border-transparent hover:border-white transition">Gastos</button>
+            <button className="font-medium border-b-2 border-transparent hover:border-white transition">Presupuesto</button>
           </nav>
         </div>
       </header>
 
-      {/* Layout principal */}
+      {/* Main */}
       <main className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Columna izquierda: Dashboard (65%) */}
           <div className="lg:col-span-2 space-y-6">
-            {/* KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <KPICard title="Ingresos" value={kpis.revenue} change={8.5} trend="up" />
               <KPICard title="Beneficio Neto" value={kpis.netProfit} change={12.3} trend="up" />
               <KPICard title="Flujo de Caja" value={kpis.cashFlow} change={-3.2} trend="down" />
               <KPICard title="Variación Presupuestaria" value={kpis.budgetVariance} change={-2.1} trend="down" />
             </div>
-
-            {/* Gráfico de Flujo de Caja */}
             <CashFlowChart data={cashFlowData} />
-
-            {/* Gráficos de Presupuesto y Gastos */}
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               <BudgetVarianceChart data={budgetData} />
               <ExpenseBreakdownChart data={expenseData} />
             </div>
-
-            {/* Botón de simulación */}
             <div className="flex justify-center">
-              <button
-                onClick={simulateScenario}
-                className="px-6 py-3 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 hover:scale-105 transition-all duration-300"
-              >
+              <button onClick={simulateScenario} className="px-6 py-3 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 hover:scale-105 transition-all duration-300">
                 Simular Escenario Demo
               </button>
             </div>
           </div>
 
-          {/* Columna derecha: Chat (35%) + Panel MCP */}
+          {/* Col derecha: Chat + MCP */}
           <div className="lg:col-span-1 space-y-6">
-            <ChatInterface
-              messages={messages}
-              isTyping={isTyping}
-              isConnected={isConnected}
-              onSendMessage={sendMessage}
-            />
+            <ChatInterface messages={messages} isTyping={isTyping} isConnected={isConnected} onSendMessage={sendMessage} />
 
-            {/* Panel MCP para validar conexión (opcional) */}
+            {/* Panel MCP Mini */}
+            <MCPMini />
+
+            {/* Acciones MCP (opcional) */}
+            <div className="space-y-2 rounded-2xl border border-white/10 bg-black/10 p-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold">Acciones MCP</h3>
+                <span className="text-xs opacity-70">{import.meta?.env?.VITE_BRIDGE_URL ?? "http://localhost:8787"}</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={handleListTools} className="px-3 py-2 rounded-xl bg-neutral-800 text-white hover:bg-neutral-700">Listar tools</button>
+                <label className="px-3 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-500 cursor-pointer">
+                  Subir CSV (cashflow)
+                  <input type="file" accept=".csv" onChange={handleCSVFile} className="sr-only" />
+                </label>
+              </div>
+              {!!toolsOut && <pre className="text-xs whitespace-pre-wrap bg-neutral-900/60 rounded p-3">{toolsOut}</pre>}
+              {!!csvOut && <pre className="text-xs whitespace-pre-wrap bg-neutral-900/60 rounded p-3">{csvOut}</pre>}
+            </div>
+
+            {/* (opcional) Tester TSX si existe */}
             {typeof MCPQuickTest !== "undefined" && <MCPQuickTest />}
           </div>
         </div>
