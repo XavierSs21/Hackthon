@@ -8,7 +8,6 @@ import CashFlowChart from "./components/CashFlowChart";
 import BudgetVarianceChart from "./components/BudgetVarianceChart";
 import ExpenseBreakdownChart from "./components/ExpenseBreakdownChart";
 import ChatInterface from "./components/ChatInterface";
-import MCPQuickTest from "./components/MCPQuickTest"; // opcional si existe
 import { geminiChat } from "./lib/gemini";
 
 import {
@@ -74,51 +73,7 @@ function trySlashCommand(input) {
   return null;
 }
 
-/** Panel mini para probar /tools y fx_convert */
-function MCPMini() {
-  const [out, setOut] = useState("");
-  const BASE = (import.meta?.env && import.meta.env.VITE_BRIDGE_URL) || "http://localhost:8787";
 
-  async function handleList() {
-    try {
-      const res = await fetch(`${BASE}/tools`);
-      const j = await res.json();
-      setOut(JSON.stringify(j, null, 2));
-    } catch (e) {
-      setOut("Error listTools: " + (e?.message ?? String(e)));
-    }
-  }
-
-  async function handleFx() {
-    try {
-      const r = await fetch(`${BASE}/tools/call`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "fx_convert", arguments: { amount: 100, from_currency: "USD", to_currency: "MXN" } }),
-      });
-      const j = await r.json();
-      const c = j?.content;
-      const txt = Array.isArray(c) && c[0]?.text ? c[0].text : JSON.stringify(j, null, 2);
-      setOut(txt);
-    } catch (e) {
-      setOut("Error fx_convert: " + (e?.message ?? String(e)));
-    }
-  }
-
-  return (
-    <div className="space-y-2 rounded-2xl border border-white/10 bg-black/10 p-3">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold">MCP Mini</h3>
-        <span className="text-xs opacity-70">{BASE}</span>
-      </div>
-      <div className="flex gap-2">
-        <button onClick={handleList} className="px-3 py-2 rounded bg-neutral-800 text-white">Listar tools</button>
-        <button onClick={handleFx} className="px-3 py-2 rounded bg-blue-600 text-white">Probar fx_convert</button>
-      </div>
-      <pre className="text-xs whitespace-pre-wrap bg-neutral-900/60 rounded p-3">{out || "Salida aquí..."}</pre>
-    </div>
-  );
-}
 
 export default function App() {
   // Estado principal
@@ -154,18 +109,8 @@ export default function App() {
     return () => { alive = false; };
   }, []);
 
-  // Estados para Acciones MCP (opcional)
-  const [toolsOut, setToolsOut] = useState("");
+  // Estado para análisis CSV
   const [csvOut, setCsvOut] = useState("");
-
-  async function handleListTools() {
-    try {
-      const res = await listTools();
-      setToolsOut(JSON.stringify(res, null, 2));
-    } catch (e) {
-      setToolsOut("Error listTools: " + (e?.message ?? String(e)));
-    }
-  }
 
   async function handleCSVFile(e) {
     const file = e.target.files?.[0];
@@ -338,32 +283,23 @@ Eres "Copiloto Financiero Banorte". Ayudas a usuarios en México a entender sus 
             </div>
           </div>
 
-          {/* Col derecha: Chat + MCP */}
+          {/* Col derecha: Chat + Acciones */}
           <div className="lg:col-span-1 space-y-6">
             <ChatInterface messages={messages} isTyping={isTyping} isConnected={isConnected} onSendMessage={sendMessage} />
 
-            {/* Panel MCP Mini */}
-            <MCPMini />
-
-            {/* Acciones MCP (opcional) */}
-            <div className="space-y-2 rounded-2xl border border-white/10 bg-black/10 p-3">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold">Acciones MCP</h3>
-                <span className="text-xs opacity-70">{import.meta?.env?.VITE_BRIDGE_URL ?? "http://localhost:8787"}</span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button onClick={handleListTools} className="px-3 py-2 rounded-xl bg-neutral-800 text-white hover:bg-neutral-700">Listar tools</button>
-                <label className="px-3 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-500 cursor-pointer">
-                  Subir CSV (cashflow)
-                  <input type="file" accept=".csv" onChange={handleCSVFile} className="sr-only" />
-                </label>
-              </div>
-              {!!toolsOut && <pre className="text-xs whitespace-pre-wrap bg-neutral-900/60 rounded p-3">{toolsOut}</pre>}
-              {!!csvOut && <pre className="text-xs whitespace-pre-wrap bg-neutral-900/60 rounded p-3">{csvOut}</pre>}
+            {/* Acciones MCP */}
+            <div className="space-y-3 rounded-2xl border border-gray-200 bg-white shadow-md p-4">
+              <h3 className="font-semibold text-gray-900">Análisis de Flujo</h3>
+              <label className="block w-full px-4 py-3 rounded-xl bg-[#EE0027] text-white text-center hover:bg-[#C70021] cursor-pointer transition-colors duration-200 font-medium">
+                Ver situacion financiera
+                <input type="file" accept=".csv" onChange={handleCSVFile} className="sr-only" />
+              </label>
+              {!!csvOut && (
+                <div className="mt-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                  <pre className="text-xs whitespace-pre-wrap text-gray-800 font-mono">{csvOut}</pre>
+                </div>
+              )}
             </div>
-
-            {/* (opcional) Tester TSX si existe */}
-            {typeof MCPQuickTest !== "undefined" && <MCPQuickTest />}
           </div>
         </div>
       </main>
